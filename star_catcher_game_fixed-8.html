@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لعبة اجمع النجوم</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#10152d,#25205a);color:#fff;min-height:100vh;display:grid;place-items:center;padding:18px}
+.wrap{width:min(560px,100%);text-align:center}.card{background:#171d3beF;border:1px solid #ffffff25;border-radius:24px;padding:20px;box-shadow:0 20px 60px #0007}
+h1{margin:0 0 8px;font-size:clamp(27px,6vw,38px)}p{color:#cbd2ff;margin:8px 0 16px}
+.stats{display:flex;justify-content:space-between;gap:10px;margin:14px 0}.pill{background:#ffffff12;padding:10px 16px;border-radius:14px;flex:1;font-weight:bold}
+canvas{width:100%;max-width:480px;aspect-ratio:4/5;background:linear-gradient(#111b3b,#202a58);border:2px solid #7181ff66;border-radius:18px;display:block;margin:auto;touch-action:none}
+.controls{display:flex;justify-content:center;gap:14px;margin-top:14px}.btn{border:0;border-radius:14px;padding:12px 20px;background:#6878ff;color:white;font-size:17px;font-weight:bold;cursor:pointer}.btn:active{transform:scale(.97)}.move{width:76px;font-size:24px;background:#39477f}
+#message{min-height:26px;margin-top:12px;color:#ffe28a;font-weight:bold}
+.small{font-size:12px;color:#aeb8e8;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+<h1>⭐ اجمع النجوم</h1>
+<p>حرّك السلة واجمع النجوم، وابتعد عن القنابل!</p>
+<div class="stats"><div class="pill">النقاط: <span id="score">0</span></div><div class="pill">أفضل نتيجة: <span id="best">0</span></div><div class="pill">الحياة: <span id="lives">3</span> ❤️</div></div>
+<canvas id="game" width="480" height="600"></canvas>
+<div class="controls"><button class="btn move" id="right">◀</button><button class="btn" id="start">ابدأ اللعب</button><button class="btn move" id="left">▶</button></div>
+<div id="message">اضغط «ابدأ اللعب» للبدء</div>
+<div class="small">تقدر تستخدم الأسهم في الكيبورد أو أزرار الحركة على الجوال.</div>
+</div>
+<section id="privateArea" style="margin-top:18px;text-align:right;background:#101733;border:1px solid #7181ff66;border-radius:18px;padding:16px">
+  <h2 style="margin:0 0 8px;text-align:center">🔒 القائمة الخاصة</h2>
+  <p style="text-align:center;margin:0 0 12px">أدخل الرمز لفتح القائمة</p>
+  <div id="lockForm" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="3" placeholder="الرمز السري"
+      aria-label="الرمز السري" style="width:150px;padding:12px;border-radius:10px;border:1px solid #8792ff;background:#0b1027;color:white;font-size:18px;text-align:center">
+    <button id="unlockBtn" type="button" class="btn">فتح القائمة</button>
+  </div>
+  <div id="pinMessage" role="status" style="text-align:center;color:#ffd47a;min-height:24px;margin-top:8px"></div>
+  <div id="privateList" hidden>
+    <h3 style="text-align:center">قائمتك الخاصة</h3>
+    <button id="hackMenuBtn" type="button" class="btn" style="display:block;margin:10px auto;background:#6d28d9">تهكير 🕶️</button>
+    <div id="fakeHackPanel" hidden style="margin:12px 0;padding:14px;border:1px solid #9b7bff;border-radius:14px;background:#0b1027;text-align:center">
+      <h3>🕶️ وضع التهكير الوهمي</h3>
+      <p>محاكاة داخل اللعبة فقط، ولا تتصل بأي جهاز أو حساب.</p>
+      <p id="fakeHackStatus">جاهز للتجربة.</p>
+      <button id="runFakeHack" type="button" class="btn">تشغيل المحاكاة</button>
+      <button id="closeFakeHack" type="button" class="btn" style="background:#465078">رجوع</button>
+    </div>
+    <ul id="items" style="line-height:2">
+      <li>مساحتي الخاصة</li>
+      <li>ملاحظاتي</li>
+      <li>أشيائي المفضلة</li>
+    </ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <input id="newItem" type="text" maxlength="60" placeholder="أضف عنصرًا للقائمة"
+        style="flex:1;min-width:150px;padding:11px;border-radius:10px;border:1px solid #8792ff;background:#0b1027;color:white;font-size:16px">
+      <button id="addItem" type="button" class="btn">إضافة</button>
+      <button id="lockBtn" type="button" class="btn" style="background:#465078">قفل القائمة</button>
+    </div>
+  </div>
+</section>
+</div>
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+const scoreEl=document.getElementById('score'),livesEl=document.getElementById('lives'),bestEl=document.getElementById('best'),msg=document.getElementById('message');
+let best=Number(localStorage.getItem('starsBest')||0);bestEl.textContent=best;
+let player={x:210,y:535,w:60,h:28,speed:7},items=[],score=0,lives=3,running=false,keys={},frame=0,raf;
+function drawBackground(){ctx.clearRect(0,0,c.width,c.height);for(let i=0;i<35;i++){let x=(i*83)%480,y=(i*137+frame*.35)%600;ctx.fillStyle='#ffffff55';ctx.fillRect(x,y,2,2)}}
+function drawPlayer(){ctx.font='48px Arial';ctx.textAlign='center';ctx.fillText('🧺',player.x+player.w/2,player.y+28)}
+function drawItems(){items.forEach(o=>{ctx.font='30px Arial';ctx.textAlign='center';ctx.fillText(o.type==='star'?'⭐':'💣',o.x,o.y)})}
+function update(){frame++;if(keys.ArrowLeft||keys.left)player.x-=player.speed;if(keys.ArrowRight||keys.right)player.x+=player.speed;player.x=Math.max(0,Math.min(c.width-player.w,player.x));
+if(frame%38===0){items.push({x:25+Math.random()*430,y:-10,type:Math.random()<.77?'star':'bomb',speed:2.5+Math.random()*2+score*.025})}
+items.forEach(o=>o.y+=o.speed);
+items=items.filter(o=>{if(o.y>player.y-4&&o.y<player.y+player.h+25&&o.x>player.x-5&&o.x<player.x+player.w+5){if(o.type==='star'){score++;scoreEl.textContent=score}else{lives--;livesEl.textContent=lives}return false}return o.y<630});
+if(lives<=0){endGame();return}
+}
+function loop(){if(!running)return;update();drawBackground();drawItems();drawPlayer();raf=requestAnimationFrame(loop)}
+function startGame(){cancelAnimationFrame(raf);score=0;lives=3;frame=0;items=[];player.x=210;scoreEl.textContent=score;livesEl.textContent=lives;running=true;msg.textContent='يلا اجمع أكبر عدد من النجوم!';loop()}
+function endGame(){running=false;if(score>best){best=score;localStorage.setItem('starsBest',best);bestEl.textContent=best}msg.textContent='انتهت اللعبة! نتيجتك: '+score+' — اضغط ابدأ للعب مرة ثانية';drawBackground();drawItems();drawPlayer()}
+document.getElementById('start').addEventListener('click',startGame);
+window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();keys[e.key]=true});
+window.addEventListener('keyup',e=>keys[e.key]=false);
+function hold(id,key){let b=document.getElementById(id);b.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>keys[key]=false))}
+hold('left','ArrowLeft');hold('right','ArrowRight');
+drawBackground();drawPlayer();
+
+const pinInput=document.getElementById('pinInput');
+const pinMessage=document.getElementById('pinMessage');
+const privateList=document.getElementById('privateList');
+function unlockPrivateList(){
+  if(pinInput.value==='999'){
+    privateList.hidden=false;
+    document.getElementById('lockForm').hidden=true;
+    pinMessage.textContent='تم فتح القائمة';
+    pinInput.value='';
+  }else{
+    pinMessage.textContent='الرمز غير صحيح، حاول مرة ثانية';
+    pinInput.value='';
+  }
+}
+document.getElementById('unlockBtn').addEventListener('click',unlockPrivateList);
+pinInput.addEventListener('keydown',e=>{if(e.key==='Enter')unlockPrivateList()});
+document.getElementById('lockBtn').addEventListener('click',()=>{
+  privateList.hidden=true;
+  document.getElementById('lockForm').hidden=false;
+  pinMessage.textContent='تم قفل القائمة';
+});
+document.getElementById('hackMenuBtn').addEventListener('click',()=>{
+  document.getElementById('fakeHackPanel').hidden=false;
+});
+document.getElementById('runFakeHack').addEventListener('click',()=>{
+  document.getElementById('fakeHackStatus').textContent='تم تشغيل المحاكاة بنجاح! 🎮';
+});
+document.getElementById('closeFakeHack').addEventListener('click',()=>{
+  document.getElementById('fakeHackPanel').hidden=true;
+});
+document.getElementById('addItem').addEventListener('click',()=>{
+  const input=document.getElementById('newItem');
+  const value=input.value.trim();
+  if(!value)return;
+  const li=document.createElement('li');
+  li.textContent=value;
+  document.getElementById('items').appendChild(li);
+  input.value='';
+});
+
+</script>
+</body></html>
